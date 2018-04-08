@@ -44,7 +44,7 @@ class MonteCarlo21:
         # estimate over all actions.
         self._action_values = {}
 
-    def run_episode()
+    def run_episode(self):
         '''
         Run a game to completion. When the game is over, update the accumulated rewards
         for each state, action pair.
@@ -64,8 +64,10 @@ class MonteCarlo21:
             if not current_state in self._action_values:
                 self._action_values[current_state] = [[0.0,0.0],[0,0]]
             
-            value_count_pairs = zip(self._action_values[current_state])
-            state_value_counts = [ (x/y if y != 0 else 0) for x,y in value_count_pairs]
+            value_count_pairs = list(zip(self._action_values[current_state][0], \
+                                                            self._action_values[current_state][1]))
+            print(value_count_pairs)
+            state_value_counts = [ (x/float(y) if y != 0 else 0.0) for (x,y) in value_count_pairs]
             
             # Select the best action given what we know of the state:
             best_action = np.argmax(state_value_counts)
@@ -77,7 +79,7 @@ class MonteCarlo21:
             epsilon =  N0/float(N0 + N_st)
 
             # Apply epsilon randomness:
-            r = random.random(0,1)
+            r = random.random()
             if r < epsilon:
                 best_action = random.randint(0,len(state_value_counts)-1)
 
@@ -85,6 +87,9 @@ class MonteCarlo21:
             reward, current_state, game_over = self._game.player_plays( best_action )
                 
             # Update the accumulated rewards for that state,action pair:
+            if not current_state in self._action_values:
+                self._action_values[current_state] = [[0.0,0.0],[0,0]]
+            
             self._action_values[current_state][0][best_action] += reward
             # Incrememt counter for that state, action pair:
             self._action_values[current_state][1][best_action] += 1 
@@ -102,6 +107,8 @@ class MonteCarlo21:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3D')
         ax.plot_wireframe(range(22), range(22), state_values)
+        ax.show()
+        plt.show()
 
 
 """ 
@@ -119,7 +126,7 @@ all possible actions (the given state is implicit).
 The policy selects the maximum value with probability 1-epsilon, or otherwise selects a
 random action.
 """
-def epsilonGreedy21(est_values, epsilon)
+def epsilonGreedy21(est_values, epsilon):
     r = random.random(0,1)
     if r > epsilon:
         action = np.argmax(est_values)
@@ -211,7 +218,7 @@ class Easy21:
         state = self.get_state() 
         return ( player_reward, state, self._game_over )
     
-    def get_state():
+    def get_state(self):
         return (self._dealer_score, self._player_score)
 
     """
