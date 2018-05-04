@@ -17,6 +17,7 @@ If a variable is a member of a class, it is pre-prended by an underscore.
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 
 
 
@@ -36,15 +37,15 @@ class MonteCarlo21:
         # This dictionary is a lookup table of the estimated action-state values.
         # Each key is the state (in easy21 this is a tuple of the dealer score 
         # and agent score).
-        # Each value is a tuple containing the list of the total returns for 
-        # 'hit' and 'stick' at indices 0 and 1 of the list followed by the 
-        # number of hits and sticks performed for the parent state:
-        # self._action_values[] => ([returns_hit, returns_stick], [num_hit, num_stick])
+        # Each value is a dict containing the list of the total returns for 
+        # 'hit' and 'stick' and number of hits and sticks performed for the parent state:
+        # self._action_values[state] => 
+        #       {"returns":[returns_hit, returns_stick], "counts":[num_hit, num_stick]}
         # The sum of both returns over the sum of both totals should give the value
         # estimate over all actions.
         self._action_values = {}
 
-    def run_episode()
+    def run_episode(self):
         '''
         Run a game to completion. When the game is over, update the accumulated rewards
         for each state, action pair.
@@ -58,50 +59,63 @@ class MonteCarlo21:
         # Start the game:
         self._game.reset()
         game_over = False
+        iters = 0
         while not game_over:
             # Get the current state and check if we've seen it:
             current_state = self._game.get_state()
             if not current_state in self._action_values:
-                self._action_values[current_state] = [[0.0,0.0],[0,0]]
+                self._action_values[current_state] = {"returns":[0.0,0.0],"counts":[0,0]}
+                state_value_counts = [0]*(len(self._action_values[current_state])-1)
+                best_action = random.randint(0,len(self._action_values[current_state])-1)
+            else:
+                value_count_pairs = [self._action_values[current_state]['returns'], \
+                                    self._action_values[current_state]['counts']]
+                state_value_counts = [ float(x)/float(y) if y != 0 else 0 for x,y in zip(*value_count_pairs)]
             
-            value_count_pairs = zip(self._action_values[current_state])
-            state_value_counts = [ (x/y if y != 0 else 0) for x,y in value_count_pairs]
-            
-            # Select the best action given what we know of the state:
-            best_action = np.argmax(state_value_counts)
+                # Select the best action given what we know of the state:
+                best_action = np.argmax(state_value_counts)
 
             # Compute epsilon for this iteration:
             N0 = self._N0
             # Compute total number of visits to current state:
-            N_st = np.sum(self._action_values[current_state][1])
-            epsilon =  N0/float(N0 + N_st)
+            N_st = np.sum(self._action_values[current_state]['counts'])
+            epsilon = N0/float(N0 + N_st)
 
             # Apply epsilon randomness:
-            r = random.random(0,1)
+            r = random.random()
             if r < epsilon:
                 best_action = random.randint(0,len(state_value_counts)-1)
 
             # Take action
-            reward, current_state, game_over = self._game.player_plays( best_action )
+            reward, next_state, game_over = self._game.player_plays( best_action )
                 
-            # Update the accumulated rewards for that state,action pair:
-            self._action_values[current_state][0][best_action] += reward
             # Incrememt counter for that state, action pair:
-            self._action_values[current_state][1][best_action] += 1 
+            self._action_values[current_state]['counts'][best_action] += 1 
+            # k = self._action_values[current_state]['counts'][best_action]
+            # Update the accumulated rewards for that state,action pair:
+            #self._action_values[current_state]['returns'][best_action] *= (1-1/k)
+            self._action_values[current_state]['returns'][best_action] += reward #/k
+            iters += 1
+            print("Completed round {}".format(iters))
+        print("Game ended!")
+        self.plot_optimal_value_function()
         
                     
     def plot_optimal_value_function(self):
         state_values = np.zeros((21, 21))
-        for d_score in range(22):
-            for p_score in range(22):
+        for d_score in range(21):
+            for p_score in range(21):
                 state = (d_score, p_score)
                 if state in self._action_values:
-                    value_count_pairs = zip(self._action_values[state])
-                    state_value = np.sum([ (x/y if y != 0 else 0) for x,y in value_count_pairs])
+                    value_count_pairs = [self._action_values[state]['returns'], \
+                                        self._action_values[state]['counts']]
+                    state_value = np.sum([ (float(x)/float(y) if y != 0 else 0) \
+                                          for x,y in zip(*value_count_pairs)])
                     state_values[d_score][p_score] = state_value
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3D')
-        ax.plot_wireframe(range(22), range(22), state_values)
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_wireframe(range(21), range(21), state_values)
+        plt.show()
 
 
 """ 
@@ -119,7 +133,7 @@ all possible actions (the given state is implicit).
 The policy selects the maximum value with probability 1-epsilon, or otherwise selects a
 random action.
 """
-def epsilonGreedy21(est_values, epsilon)
+def epsilonGreedy21(est_values, epsilon):
     r = random.random(0,1)
     if r > epsilon:
         action = np.argmax(est_values)
@@ -178,6 +192,8 @@ class Easy21:
             # Check if the player has gone bust (score over 21 or less than 1)
             if self._player_score > 21 or self._player_score < 1:
                 self._game_over = True
+                print("Game over in game")
+
         
         # Otherwise continue the game by having the dealer play
         elif action == "stick" or action == 1:
@@ -198,9 +214,12 @@ class Easy21:
                     # If the dealer busts, then the game ends.
                     if self._dealer_score > 21 or self._dealer_score < 1:
                         self._game_over = True
+                        print("Game over in game")
+
 
                 else: # Dealer sticks and game ends
                     self.game_over = True
+                    print("Game over in game")
 
         
         # If the action is invalid, return without any changes
@@ -211,7 +230,7 @@ class Easy21:
         state = self.get_state() 
         return ( player_reward, state, self._game_over )
     
-    def get_state():
+    def get_state(self):
         return (self._dealer_score, self._player_score)
 
     """
