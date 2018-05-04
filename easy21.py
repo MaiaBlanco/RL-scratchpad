@@ -71,9 +71,14 @@ class MonteCarlo21:
                 value_count_pairs = [self._action_values[current_state]['returns'], \
                                     self._action_values[current_state]['counts']]
                 state_value_counts = [ float(x)/float(y) if y != 0 else 0 for x,y in zip(*value_count_pairs)]
+
+            value_count_pairs = list(zip(self._action_values[current_state][0], \
+                                                            self._action_values[current_state][1]))
+            print(value_count_pairs)
+            state_value_counts = [ (x/float(y) if y != 0 else 0.0) for (x,y) in value_count_pairs]
             
-                # Select the best action given what we know of the state:
-                best_action = np.argmax(state_value_counts)
+            # Select the best action given what we know of the state:
+            best_action = np.argmax(state_value_counts)
 
             # Compute epsilon for this iteration:
             N0 = self._N0
@@ -89,6 +94,11 @@ class MonteCarlo21:
             # Take action
             reward, next_state, game_over = self._game.player_plays( best_action )
                 
+            # Update the accumulated rewards for that state,action pair:
+            if not current_state in self._action_values:
+                self._action_values[current_state] = [[0.0,0.0],[0,0]]
+            
+            self._action_values[current_state][0][best_action] += reward
             # Incrememt counter for that state, action pair:
             self._action_values[current_state]['counts'][best_action] += 1 
             # k = self._action_values[current_state]['counts'][best_action]
@@ -113,8 +123,8 @@ class MonteCarlo21:
                                           for x,y in zip(*value_count_pairs)])
                     state_values[d_score][p_score] = state_value
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.plot_wireframe(range(21), range(21), state_values)
+        ax = fig.add_subplot(111, projection='3D')
+        ax.plot_wireframe(range(22), range(22), state_values)
         plt.show()
 
 
