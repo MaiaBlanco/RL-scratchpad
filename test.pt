@@ -1,4 +1,0 @@
-import easy21
-
-mc = easy21.MonteCarlo21()
-mc.run_episode()

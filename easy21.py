@@ -19,6 +19,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
+"""
+This class implements the SARSA(lambda) reinforcement learning frea
+"""
+class TemporalDifference:
+    '''
+    n_steps represents the number of steps ahead that TD learning will use to update state-action value estimations.
+    If equal to 'lambda', TD-lambda is used. Otherwise the learning range is exactly n_steps.
+    '''
+    # TODO: currently only does 0-step TD, not variable step. Fix this.
+    def __init__(self, N0=100, n_steps=0):
+        # init an interal game instance:
+        self._game = Easy21();
+
+
+
+
 
 
 """
@@ -26,7 +42,7 @@ This class implements a framework for performing monte-carlo episodes of easy21.
 """
 class MonteCarlo21:
     # TODO: implement both versions of MC: every-visit (default) and episode-visit
-    def __init__(self, N0=100):
+    def __init__(self, N0=100, every_visit=True):
         # Init a game instance
         self._game = Easy21()
 
@@ -41,45 +57,43 @@ class MonteCarlo21:
         # 'hit' and 'stick' and number of hits and sticks performed for the parent state:
         # self._action_values[state] => 
         #       {"returns":[returns_hit, returns_stick], "counts":[num_hit, num_stick]}
-        # The sum of both returns over the sum of both totals should give the value
-        # estimate over all actions.
+        # The sum of both counts gives the total number of visits to the parent state.
+        # The sum of both returns gives the total returns for that state regardless of 
+        # action selected; therefore the sum of returns over sum of visits is the estimated 
+        # state value.
+        # The returns of one particular action-state over the visits to that action-state 
+        # gives the action-state value.
         self._action_values = {}
+        # State values is a dict containing the value estimates for each state based 
+        # on past episodes.
+        self._state_values = {}
+
+        # Flag for every-visit vs first visit counting:
+        self._every_visit = every_visit 
+
 
     def run_episode(self):
         '''
         Run a game to completion. When the game is over, update the accumulated rewards
         for each state, action pair.
         '''
-        # TODO: figure out if below comments make sense and are necessary...
-        # For each episode, keep a running list of each state we have seen.
-        # This way we will only add rewards incurred during the game to the states
-        # that we have seen.
-        #seen_states = set()
-        
+        # Set used to keep track of seen states per episode for first-visit monte carlo
+        seen_states = []
+        episode_reward = 0
+
         # Start the game:
         self._game.reset()
-        game_over = False
         iters = 0
-        while not game_over:
-            # Get the current state and check if we've seen it:
+        while not self._game._game_over:
+            # Get the current state and check if we've seen it (ever):
             current_state = self._game.get_state()
             if not current_state in self._action_values:
                 self._action_values[current_state] = {"returns":[0.0,0.0],"counts":[0,0]}
-                state_value_counts = [0]*(len(self._action_values[current_state])-1)
-                best_action = random.randint(0,len(self._action_values[current_state])-1)
-            else:
-                value_count_pairs = [self._action_values[current_state]['returns'], \
-                                    self._action_values[current_state]['counts']]
-                state_value_counts = [ float(x)/float(y) if y != 0 else 0 for x,y in zip(*value_count_pairs)]
 
-            value_count_pairs = list(zip(self._action_values[current_state][0], \
-                                                            self._action_values[current_state][1]))
-            print(value_count_pairs)
-            state_value_counts = [ (x/float(y) if y != 0 else 0.0) for (x,y) in value_count_pairs]
+            value_count_pairs = list(zip(self._action_values[current_state]['returns'], \
+                                         self._action_values[current_state]['counts']))
+            state_value_counts = [ (float(x)/float(y) if y != 0 else 0.0) for x,y in zip(*value_count_pairs)]
             
-            # Select the best action given what we know of the state:
-            best_action = np.argmax(state_value_counts)
-
             # Compute epsilon for this iteration:
             N0 = self._N0
             # Compute total number of visits to current state:
@@ -90,41 +104,80 @@ class MonteCarlo21:
             r = random.random()
             if r < epsilon:
                 best_action = random.randint(0,len(state_value_counts)-1)
+            else:
+                # Select the best action given what we know of the state-action estimates:
+                best_action = np.argmax(state_value_counts)
 
             # Take action
-            reward, next_state, game_over = self._game.player_plays( best_action )
-                
-            # Update the accumulated rewards for that state,action pair:
-            if not current_state in self._action_values:
-                self._action_values[current_state] = [[0.0,0.0],[0,0]]
+            reward, _, _ = self._game.player_plays( best_action )
             
-            self._action_values[current_state][0][best_action] += reward
-            # Incrememt counter for that state, action pair:
-            self._action_values[current_state]['counts'][best_action] += 1 
-            # k = self._action_values[current_state]['counts'][best_action]
-            # Update the accumulated rewards for that state,action pair:
-            #self._action_values[current_state]['returns'][best_action] *= (1-1/k)
-            self._action_values[current_state]['returns'][best_action] += reward #/k
-            iters += 1
-            print("Completed round {}".format(iters))
-        print("Game ended!")
-        self.plot_optimal_value_function()
-        
+            # Check for every visit and first visit versions of monte carlo
+            if self._every_visit or (not self._every_visit and current_state not in seen_states):
+                # Update the accumulated rewards for that state,action pair:
+                episode_reward += reward
+                # Incrememt counter for that state, action pair:
+                self._action_values[current_state]['counts'][best_action] += 1 
+                # Record seen states
+                seen_states.append(current_state)
+            # Bookkeeping
+            iters += 1 
+
+        # Update value estimates when episode concludes:
+        for state in seen_states:
+            if state not in self._state_values:
+                old_value = 0
+            else:
+                old_value = self._state_values[state]
+            total_visits = np.sum( self._action_values[state]['counts'] )
+            total_returns = episode_reward
+            self._state_values[state] = old_value + (total_returns - old_value)/total_visits
                     
+
+    # def plot_expected_value_function(self):
+    #     state_values = np.zeros((21, 10))
+    #     for d_score in range(21):
+    #         for p_score in range(10):
+    #             state = (d_score, p_score)
+    #             if state in self._action_values:
+    #                 value_count_pairs = [np.sum(self._action_values[state]['returns']), \
+    #                                     np.sum(self._action_values[state]['counts'])]
+    #                 state_value = float(value_count_pairs[0])/float(value_count_pairs[1])
+    #                 state_values[d_score][p_score] = state_value
+    #     fig = plt.figure()
+    #     ax = fig.add_subplot(111, projection='3d')
+    #     X = range(21)
+    #     Y = range(10)
+    #     X, Y = np.meshgrid(X, Y)
+    #     ax.plot_wireframe(X, Y, state_values)
+    #     plt.title('Expected V(s)')
+    #     plt.xlabel("Dealer Score")
+    #     plt.ylabel("Player Score")
+    #     plt.show()
+
     def plot_optimal_value_function(self):
-        state_values = np.zeros((21, 21))
-        for d_score in range(21):
-            for p_score in range(21):
+        state_values = np.zeros((10, 21))
+        for d_score in range(1,11):
+            for p_score in range(1,22):
                 state = (d_score, p_score)
+                # print(state)
                 if state in self._action_values:
-                    value_count_pairs = [self._action_values[state]['returns'], \
-                                        self._action_values[state]['counts']]
-                    state_value = np.sum([ (float(x)/float(y) if y != 0 else 0) \
-                                          for x,y in zip(*value_count_pairs)])
-                    state_values[d_score][p_score] = state_value
+                    # value_count_pairs = [self._action_values[state]['returns'], \
+                    #                     self._action_values[state]['counts']]
+                    # state_value = np.max([ (float(x)/float(y) if y != 0 else 0) \
+                    #                       for x,y in zip(*value_count_pairs)])
+                    state_values[d_score-1][p_score-1] = self._state_values[state] #state_value
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3D')
-        ax.plot_wireframe(range(22), range(22), state_values)
+        ax = fig.add_subplot(111, projection='3d')
+        X = range(10)
+        Y = range(21)
+        X, Y = np.meshgrid(Y, X)
+        print(X.shape)
+        print(Y.shape)
+        print(state_values.shape)
+        ax.plot_wireframe(X, Y, state_values)
+        plt.title("V*(s) = max_a Q*(s,a)")
+        plt.xlabel("Player Score")
+        plt.ylabel("Dealer Starting Card (Initial Score)")
         plt.show()
 
 
@@ -202,7 +255,6 @@ class Easy21:
             # Check if the player has gone bust (score over 21 or less than 1)
             if self._player_score > 21 or self._player_score < 1:
                 self._game_over = True
-                print("Game over in game")
 
         
         # Otherwise continue the game by having the dealer play
@@ -224,12 +276,9 @@ class Easy21:
                     # If the dealer busts, then the game ends.
                     if self._dealer_score > 21 or self._dealer_score < 1:
                         self._game_over = True
-                        print("Game over in game")
-
 
                 else: # Dealer sticks and game ends
-                    self.game_over = True
-                    print("Game over in game")
+                    self._game_over = True
 
         
         # If the action is invalid, return without any changes
