@@ -153,10 +153,11 @@ class MonteCarlo21:
         print(X.shape)
         print(Y.shape)
         print(state_values.shape)
-        ax.plot_wireframe(X, Y, state_values)
+        ax.plot_wireframe(X+1, Y+1, state_values)
         plt.title("V*(s) = max_a Q*(s,a)")
         plt.xlabel("Player Score")
         plt.ylabel("Dealer Starting Card (Initial Score)")
+        ax.set_zlabel("Value of state given greedy action selection.")
         plt.show()
 
 
