@@ -41,7 +41,6 @@ class TemporalDifference:
 This class implements a framework for performing monte-carlo episodes of easy21.
 """
 class MonteCarlo21:
-    # TODO: implement both versions of MC: every-visit (default) and episode-visit
     def __init__(self, N0=100, every_visit=True):
         # Init a game instance
         self._game = Easy21()
@@ -50,23 +49,8 @@ class MonteCarlo21:
         # policy (default policy). 
         self._N0 = N0
 
-        # This dictionary is a lookup table of the estimated action-state values.
-        # Each key is the state (in easy21 this is a tuple of the dealer score 
-        # and agent score).
-        # Each value is a dict containing the list of the total returns for 
-        # 'hit' and 'stick' and number of hits and sticks performed for the parent state:
-        # self._action_values[state] => 
-        #       {"returns":[returns_hit, returns_stick], "counts":[num_hit, num_stick]}
-        # The sum of both counts gives the total number of visits to the parent state.
-        # The sum of both returns gives the total returns for that state regardless of 
-        # action selected; therefore the sum of returns over sum of visits is the estimated 
-        # state value.
-        # The returns of one particular action-state over the visits to that action-state 
-        # gives the action-state value.
-        self._action_values = {}
-        # State values is a dict containing the value estimates for each state based 
-        # on past episodes.
-        self._state_values = {}
+        self._action_state_returns = np.zeros((10, 21, 2))
+        self._action_state_counts = np.zeros((10, 21, 2))
 
         # Flag for every-visit vs first visit counting:
         self._every_visit = every_visit 
@@ -74,12 +58,15 @@ class MonteCarlo21:
 
     def run_episode(self):
         '''
-        Run a game to completion. When the game is over, update the accumulated rewards
-        for each state, action pair.
+        Run a game to completion. When the game is over, update the accumulated returns
+        for each state, action pair based on the cumulative record of rewards and state trace.
         '''
-        # Set used to keep track of seen states per episode for first-visit monte carlo
-        seen_states = []
-        episode_reward = 0
+        # List to keep track of seen states per episode for first-visit monte carlo
+        state_actions = []
+        # Rewards trace:
+        rewards = []
+        Q = self._action_state_returns
+        C = self._action_state_counts
 
         # Start the game:
         self._game.reset()
@@ -87,85 +74,66 @@ class MonteCarlo21:
         while not self._game._game_over:
             # Get the current state and check if we've seen it (ever):
             current_state = self._game.get_state()
-            if not current_state in self._action_values:
-                self._action_values[current_state] = {"returns":[0.0,0.0],"counts":[0,0]}
+            d_score, p_score = current_state
+            d_score -= 1
+            p_score -= 1
 
-            value_count_pairs = list(zip(self._action_values[current_state]['returns'], \
-                                         self._action_values[current_state]['counts']))
-            state_value_counts = [ (float(x)/float(y) if y != 0 else 0.0) for x,y in zip(*value_count_pairs)]
-            
             # Compute epsilon for this iteration:
             N0 = self._N0
-            # Compute total number of visits to current state:
-            N_st = np.sum(self._action_values[current_state]['counts'])
+            # Compute total number of visits to current state over all actions:
+            N_st = np.sum(C[d_score, p_score, :])
             epsilon = N0/float(N0 + N_st)
 
             # Apply epsilon randomness:
             r = random.random()
             if r < epsilon:
-                best_action = random.randint(0,len(state_value_counts)-1)
+                best_action = random.randint(0,len(Q[d_score, p_score, :])-1)
             else:
                 # Select the best action given what we know of the state-action estimates:
-                best_action = np.argmax(state_value_counts)
+                best_action = np.argmax(Q[d_score, p_score, :])
 
             # Take action
-            reward, _, _ = self._game.player_plays( best_action )
-            
-            # Check for every visit and first visit versions of monte carlo
-            if self._every_visit or (not self._every_visit and current_state not in seen_states):
-                # Update the accumulated rewards for that state,action pair:
-                episode_reward += reward
-                # Incrememt counter for that state, action pair:
-                self._action_values[current_state]['counts'][best_action] += 1 
-                # Record seen states
-                seen_states.append(current_state)
+            reward, next_state, _ = self._game.player_plays( best_action )
+            # Update rewards trace for this episode
+            rewards.append(reward)
+            # Update state-action trace for this episode
+            state_actions.append( (current_state, best_action) )
+
             # Bookkeeping
             iters += 1 
 
-        # Update value estimates when episode concludes:
-        for state in seen_states:
-            if state not in self._state_values:
-                old_value = 0
+        # Update value estimates now that episode has concluded:
+        seen_states = set()
+        for index, state_action in enumerate(state_actions):
+            state, action = state_action
+            d_score, p_score = state
+            d_score -= 1
+            p_score -= 1
+            if C[d_score, p_score, action] > 0:
+                old_value = Q[d_score, p_score, action] / C[d_score, p_score, action]
             else:
-                old_value = self._state_values[state]
-            total_visits = np.sum( self._action_values[state]['counts'] )
-            total_returns = episode_reward
-            self._state_values[state] = old_value + (total_returns - old_value)/total_visits
-                    
+                old_value = 0
+            # Perform every-visit or first-visit accounting by skipping a previously seen
+            # state when we are doing first-visit:
+            if self._every_visit or state not in seen_states:
+                # Cumulative sum on rewards:
+                Q[d_score, p_score, action] += np.sum( rewards[index:] )
+                C[d_score, p_score, action] += 1
+                seen_states.add(state)
 
-    # def plot_expected_value_function(self):
-    #     state_values = np.zeros((21, 10))
-    #     for d_score in range(21):
-    #         for p_score in range(10):
-    #             state = (d_score, p_score)
-    #             if state in self._action_values:
-    #                 value_count_pairs = [np.sum(self._action_values[state]['returns']), \
-    #                                     np.sum(self._action_values[state]['counts'])]
-    #                 state_value = float(value_count_pairs[0])/float(value_count_pairs[1])
-    #                 state_values[d_score][p_score] = state_value
-    #     fig = plt.figure()
-    #     ax = fig.add_subplot(111, projection='3d')
-    #     X = range(21)
-    #     Y = range(10)
-    #     X, Y = np.meshgrid(X, Y)
-    #     ax.plot_wireframe(X, Y, state_values)
-    #     plt.title('Expected V(s)')
-    #     plt.xlabel("Dealer Score")
-    #     plt.ylabel("Player Score")
-    #     plt.show()
 
     def plot_optimal_value_function(self):
+        Q = self._action_state_returns
+        C = self._action_state_counts
         state_values = np.zeros((10, 21))
-        for d_score in range(1,11):
-            for p_score in range(1,22):
-                state = (d_score, p_score)
-                # print(state)
-                if state in self._action_values:
-                    # value_count_pairs = [self._action_values[state]['returns'], \
-                    #                     self._action_values[state]['counts']]
-                    # state_value = np.max([ (float(x)/float(y) if y != 0 else 0) \
-                    #                       for x,y in zip(*value_count_pairs)])
-                    state_values[d_score-1][p_score-1] = self._state_values[state] #state_value
+        # Note loops are technically one-off from actual state scores due to 0-based indexing.
+        for d_score in range(10):
+            for p_score in range(21):
+                opt_val = np.max( Q[d_score, p_score, :] )
+                count = np.sum( C[d_score, p_score, :] )
+                if (count <= 0):
+                    print("AAAAAAGGHHHH!")
+                state_values[d_score][p_score] = opt_val / count
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         X = range(10)
