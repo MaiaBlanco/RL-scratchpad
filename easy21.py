@@ -49,8 +49,9 @@ class MonteCarlo21:
         # policy (default policy). 
         self._N0 = N0
 
-        self._action_state_returns = np.zeros((10, 21, 2))
+        # self._action_state_returns = np.zeros((10, 21, 2))
         self._action_state_counts = np.zeros((10, 21, 2))
+        self._action_state_values = np.zeros((10, 21, 2))
 
         # Flag for every-visit vs first visit counting:
         self._every_visit = every_visit 
@@ -65,8 +66,11 @@ class MonteCarlo21:
         state_actions = []
         # Rewards trace:
         rewards = []
-        Q = self._action_state_returns
+        V = self._action_state_values
+        # Q = self._action_state_returns
         C = self._action_state_counts
+        seen_states = set()
+        total_reward = 0.0
 
         # Start the game:
         self._game.reset()
@@ -75,6 +79,7 @@ class MonteCarlo21:
             # Get the current state and check if we've seen it (ever):
             current_state = self._game.get_state()
             d_score, p_score = current_state
+            # Subtract one to use scores as indices.
             d_score -= 1
             p_score -= 1
 
@@ -87,20 +92,25 @@ class MonteCarlo21:
             # Apply epsilon randomness:
             r = random.random()
             if r < epsilon:
-                best_action = random.randint(0,len(Q[d_score, p_score, :])-1)
+                best_action = random.randint(0,len(V[d_score, p_score, :])-1)
             else:
                 # Select the best action given what we know of the state-action estimates:
-                best_action = np.argmax(Q[d_score, p_score, :])
+                best_action = np.argmax(V[d_score, p_score, :])
 
             # Take action
-            reward, next_state, _ = self._game.player_plays( best_action )
+            reward, _, _ = self._game.player_plays( best_action )
             # Update rewards trace for this episode
             rewards.append(reward)
+            total_reward += reward
             # Update state-action trace for this episode
             state_actions.append( (current_state, best_action) )
 
+            if self._every_visit or current_state not in seen_states:
+                C[d_score, p_score, best_action] += 1
+
             # Bookkeeping
             iters += 1 
+            seen_states.add(current_state)
 
         # Update value estimates now that episode has concluded:
         seen_states = set()
@@ -109,31 +119,32 @@ class MonteCarlo21:
             d_score, p_score = state
             d_score -= 1
             p_score -= 1
-            if C[d_score, p_score, action] > 0:
-                old_value = Q[d_score, p_score, action] / C[d_score, p_score, action]
-            else:
-                old_value = 0
+            old_value = V[d_score, p_score, action]
+            count = C[d_score, p_score, action]
+
             # Perform every-visit or first-visit accounting by skipping a previously seen
-            # state when we are doing first-visit:
+            # state only if we are doing first-visit:
             if self._every_visit or state not in seen_states:
                 # Cumulative sum on rewards:
-                Q[d_score, p_score, action] += np.sum( rewards[index:] )
-                C[d_score, p_score, action] += 1
+                new_cumulative_return = total_reward #np.sum( rewards[index:] )
+                V[d_score, p_score, action] = old_value + (new_cumulative_return - old_value) / count
                 seen_states.add(state)
 
 
     def plot_optimal_value_function(self):
-        Q = self._action_state_returns
+        # Q = self._action_state_returns
         C = self._action_state_counts
+        V = self._action_state_values
         state_values = np.zeros((10, 21))
         # Note loops are technically one-off from actual state scores due to 0-based indexing.
         for d_score in range(10):
             for p_score in range(21):
-                opt_val = np.max( Q[d_score, p_score, :] )
-                count = np.sum( C[d_score, p_score, :] )
-                if (count <= 0):
-                    print("AAAAAAGGHHHH!")
-                state_values[d_score][p_score] = opt_val / count
+                opt_val = np.max( V[d_score, p_score, :] )
+                # count = np.sum( C[d_score, p_score, :] )
+                # if (count <= 0):
+                #     state_values[d_score][p_score] = 0.0
+                #else:
+                state_values[d_score][p_score] = opt_val #/ count
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         X = range(10)
@@ -205,50 +216,53 @@ class Easy21:
         '''
         # Initialize player reward to 0
         player_reward = 0
-        
+
         if action == "hit" or action == 0:
             # Generate magnitude value of card
             next_card_value = random.randint(1, 10)
 
             # With probability 1/3, the card we drew was red and has negative value
-            if random.uniform(0,1) <= 0.333333:
+            if random.randint(1,3) < 2:
                 next_card_value *= -1
             
             # Add the card value to the player's score
             self._player_score += next_card_value
 
-            # Store that reward for later
-            player_reward = next_card_value
-
             # Check if the player has gone bust (score over 21 or less than 1)
             if self._player_score > 21 or self._player_score < 1:
                 self._game_over = True
+                player_reward = -1.0
+            else:
+                player_reward = 0.0
 
         
         # Otherwise continue the game by having the dealer play
         elif action == "stick" or action == 1:
             # Dealer functions as a part of the environment and will play ("hit")
             # until either goes bust or score goes above 17
-            while not self._game_over:
-                # "hit" condition and branch
-                if self._dealer_score < 17:
-                    # Dealer draws a card
-                    next_card_value = random.randint(1,10)
+            # "hit" condition:
+            while self._dealer_score < 17 and self._dealer_score > 1:
+                # Dealer draws a card
+                next_card_value = random.randint(1,10)
                     
-                    if random.uniform(0,1) <= 0.333333:
-                        next_card_value *= -1
+                if random.randint(1,3) <= 1:
+                    next_card_value *= -1
                     
-                    self._dealer_score += next_card_value
+                self._dealer_score += next_card_value
                     
-                    # Check the dealer's status.
-                    # If the dealer busts, then the game ends.
-                    if self._dealer_score > 21 or self._dealer_score < 1:
-                        self._game_over = True
+            # Check the dealer's status.
+            # If the dealer busts, then the game ends.
+            # Otherwise it may be a draw or the player may win.
+            self._game_over = True
+            if self._dealer_score > 21 or self._dealer_score < 1:
+                player_reward = 1.0
+            elif self._dealer_score > self._player_score:
+                player_reward = -1.0
+            elif self._dealer_score < self._player_score:
+                player_reward = 1.0
+            else:
+                player_reward = 0.0
 
-                else: # Dealer sticks and game ends
-                    self._game_over = True
-
-        
         # If the action is invalid, return without any changes
         else:
             print("Unknown action: {}. Valid actions are 'stick' or 'hit'".format(action))
@@ -274,8 +288,4 @@ class Easy21:
         
         # Set the game state to non-terminal:
         self._game_over = False
-
-        # Set the player and dealer action states:
-        self._dealer_stick = False
-        self._player_stick = False
 

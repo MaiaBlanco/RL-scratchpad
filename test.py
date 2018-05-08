@@ -1,7 +1,7 @@
 import easy21
 
 mc = easy21.MonteCarlo21(N0=100, every_visit=True)
-for i in range(100000):
+for i in range(1000000):
 	mc.run_episode()
 	# print(i, ": Episode ended!")
 
