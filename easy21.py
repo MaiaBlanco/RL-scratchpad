@@ -32,7 +32,16 @@ class TemporalDifference21:
         # init an interal game instance:
         self._game = Easy21();
 
+        # Set initial N for computation of epsilon parameter used with epsilon-greedy
+        # policy (default policy). 
+        self._N0 = float(N0)
 
+        self._action_state_counts = np.zeros((10, 21, 2))
+        self._action_state_values = np.zeros((10, 21, 2))
+
+    # Run a TD episode and update Q(s,a) as simulation progresses.
+    def run_episode(self):
+        
 
 
 

@@ -2,12 +2,12 @@ import easy21
 import pickle 
 
 
-# Run Time-Difference Simulation
+# Run TemporalDifference Simulation
 
 RERUN = True
 
 if RERUN:
-	td = easy21.TimeDifference21(N0=1000.0, n_steps=0)
+	td = easy21.TemporalDifference21(N0=1000.0, n_steps=0)
 	for i in range(1000000):
 		td.run_episode()
 		# if i % 1000 == 0:
