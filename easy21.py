@@ -22,7 +22,7 @@ from mpl_toolkits.mplot3d import axes3d
 """
 This class implements the SARSA(lambda) reinforcement learning frea
 """
-class TemporalDifference:
+class TemporalDifference21:
     '''
     n_steps represents the number of steps ahead that TD learning will use to update state-action value estimations.
     If equal to 'lambda', TD-lambda is used. Otherwise the learning range is exactly n_steps.
@@ -41,15 +41,14 @@ class TemporalDifference:
 This class implements a framework for performing monte-carlo episodes of easy21.
 """
 class MonteCarlo21:
-    def __init__(self, N0=100, every_visit=True):
+    def __init__(self, N0=100.0, every_visit=True):
         # Init a game instance
         self._game = Easy21()
 
         # Set initial N for computation of epsilon parameter used with epsilon-greedy
         # policy (default policy). 
-        self._N0 = N0
+        self._N0 = float(N0)
 
-        # self._action_state_returns = np.zeros((10, 21, 2))
         self._action_state_counts = np.zeros((10, 21, 2))
         self._action_state_values = np.zeros((10, 21, 2))
 
@@ -66,85 +65,67 @@ class MonteCarlo21:
         state_actions = []
         # Rewards trace:
         rewards = []
-        V = self._action_state_values
-        # Q = self._action_state_returns
+        Q = self._action_state_values
         C = self._action_state_counts
-        seen_states = set()
-        total_reward = 0.0
 
         # Start the game:
         self._game.reset()
-        iters = 0
         while not self._game._game_over:
             # Get the current state and check if we've seen it (ever):
             current_state = self._game.get_state()
-            d_score, p_score = current_state
             # Subtract one to use scores as indices.
-            d_score -= 1
-            p_score -= 1
+            d_score, p_score = [ x-1 for x in current_state ]
 
             # Compute epsilon for this iteration:
             N0 = self._N0
             # Compute total number of visits to current state over all actions:
-            N_st = np.sum(C[d_score, p_score, :])
-            epsilon = N0/float(N0 + N_st)
+            N_st = float( np.sum(C[d_score, p_score, :]) )
+            epsilon = N0/(N0 + N_st)
 
             # Apply epsilon randomness:
             r = random.random()
             if r < epsilon:
-                best_action = random.randint(0,len(V[d_score, p_score, :])-1)
+                best_action = random.randint(0,1)
             else:
                 # Select the best action given what we know of the state-action estimates:
-                best_action = np.argmax(V[d_score, p_score, :])
+                best_action = np.argmax(Q[d_score, p_score, :])
 
             # Take action
             reward, _, _ = self._game.player_plays( best_action )
             # Update rewards trace for this episode
             rewards.append(reward)
-            total_reward += reward
             # Update state-action trace for this episode
             state_actions.append( (current_state, best_action) )
-
-            if self._every_visit or current_state not in seen_states:
-                C[d_score, p_score, best_action] += 1
-
-            # Bookkeeping
-            iters += 1 
-            seen_states.add(current_state)
 
         # Update value estimates now that episode has concluded:
         seen_states = set()
         for index, state_action in enumerate(state_actions):
             state, action = state_action
-            d_score, p_score = state
-            d_score -= 1
-            p_score -= 1
-            old_value = V[d_score, p_score, action]
-            count = C[d_score, p_score, action]
+            d_score, p_score = [x-1 for x in state]
+            old_value = Q[d_score, p_score, action]
 
             # Perform every-visit or first-visit accounting by skipping a previously seen
             # state only if we are doing first-visit:
             if self._every_visit or state not in seen_states:
+                # Update state-action count:
+                C[d_score, p_score, action] += 1
+                count = float(C[d_score, p_score, action])
                 # Cumulative sum on rewards:
-                new_cumulative_return = total_reward #np.sum( rewards[index:] )
-                V[d_score, p_score, action] = old_value + (new_cumulative_return - old_value) / count
+                cumulative_return = np.sum( rewards[index:] )
+                Q[d_score, p_score, action] = old_value + (cumulative_return - old_value) / count
                 seen_states.add(state)
 
 
     def plot_optimal_value_function(self):
         # Q = self._action_state_returns
         C = self._action_state_counts
-        V = self._action_state_values
+        Q = self._action_state_values
         state_values = np.zeros((10, 21))
-        # Note loops are technically one-off from actual state scores due to 0-based indexing.
+        # Note loops are one-off from corresponding state scores due to 0-based indexing.
         for d_score in range(10):
             for p_score in range(21):
-                opt_val = np.max( V[d_score, p_score, :] )
-                # count = np.sum( C[d_score, p_score, :] )
-                # if (count <= 0):
-                #     state_values[d_score][p_score] = 0.0
-                #else:
-                state_values[d_score][p_score] = opt_val #/ count
+                opt_val = np.amax( Q[d_score, p_score, :] )
+                state_values[d_score][p_score] = opt_val
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         X = range(10)
@@ -215,8 +196,6 @@ class Easy21:
         received for the selected action.
         The next state is a list of: [dealer score, player score, game status]
         '''
-        # Initialize player reward to 0
-        player_reward = 0
 
         if action == "hit" or action == 0:
             # Generate magnitude value of card
@@ -267,6 +246,7 @@ class Easy21:
         # If the action is invalid, return without any changes
         else:
             print("Unknown action: {}. Valid actions are 'stick' or 'hit'".format(action))
+            player_reward = 0.0
                     
         # Report back the player's reward and the game state
         state = self.get_state() 
