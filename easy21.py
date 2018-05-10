@@ -25,10 +25,10 @@ This class implements the SARSA(lambda) reinforcement learning frea
 class TemporalDifference21:
     '''
     n_steps represents the number of steps ahead that TD learning will use to update state-action value estimations.
-    If equal to 'lambda', TD-lambda is used. Otherwise the learning range is exactly n_steps.
+    If equal to '-1', TD-lambda is used. Otherwise the learning range is exactly n_steps.
     '''
-    # TODO: currently only does 0-step TD, not variable step. Fix this.
-    def __init__(self, N0=100, n_steps=0):
+    # TODO: currently only does 1-step TD (TD(0)), not variable step. Fix this.
+    def __init__(self, N0=100, n_steps=1):
         # init an interal game instance:
         self._game = Easy21();
 
@@ -39,9 +39,78 @@ class TemporalDifference21:
         self._action_state_counts = np.zeros((10, 21, 2))
         self._action_state_values = np.zeros((10, 21, 2))
 
+        if n_steps < 1:
+            print("Warning: n_steps must be greater than 0. Assuming base of 1.")
+            n_steps = 1
+        self._lookahead = n_steps
+
     # Run a TD episode and update Q(s,a) as simulation progresses.
     def run_episode(self):
-        
+        '''
+        Run a game to completion. As the game runs, update the accumulated returns
+        for each state, action pair based on the cumulative record of rewards and state trace.
+        '''
+        # List to keep track of states, actions, and rewards
+        state_actions_rewards = []
+        Q = self._action_state_values
+        C = self._action_state_counts
+
+        # Start the game:
+        self._game.reset()
+        # Get the current state:
+        current_state = self._game.get_state()
+        # Subtract one to use scores as indices.
+        d_score, p_score = [ x-1 for x in current_state ]
+        while not self._game._game_over:
+
+            # Compute epsilon for this iteration:
+            N0 = self._N0
+            # Compute total number of visits to current state over all actions:
+            N_st = float( np.sum(C[d_score, p_score, :]) )
+            epsilon = N0/(N0 + N_st)
+
+            # Apply epsilon randomness:
+            r = random.random()
+            if r < epsilon:
+                best_action = random.randint(0,1)
+            else:
+                # Select the best action given what we know of the state-action estimates:
+                best_action = np.argmax(Q[d_score, p_score, :])
+
+            # Save old state:
+            d_score_last = d_score
+            p_score_last = p_score
+            last_action = best_action
+
+            # Take action
+            reward, current_state, _ = self._game.player_plays( best_action )
+            d_score, p_score = [ x-1 for x in current_state ]
+            
+            # Update state-action-reward trace:
+            state_actions_rewards.append( (d_score_last, p_score_last, last_action, reward) )
+            C[d_score_last, p_score_last, last_action] += 1
+
+            # Update value estimates at the end of one action-taking iteration in the game:
+            # (Do this for every state seen)
+            # TODO: generalize this to more than just TD-0
+            for index, val in enumerate(state_actions_rewards):
+                d_score_last, p_score_last, last_action, _ = state_actions_rewards[index]
+                lookahead = self._lookahead
+                if index + lookahead >= len(state_actions_rewards):
+                    continue
+                d_score_now, p_score_now, _, _ = state_actions_rewards[index + lookahead] 
+                best_target_return = np.max(Q[d_score_now, p_score_now, :])
+                # Get rewards from the state at index up to the target state:
+                rewards = [ x[3] for x in state_actions_rewards[index, index+lookahead] ]
+                # Compute the pre-target return (NOTE NO DISCOUNTING):
+                pretarget_return = np.sum(rewards)
+                total_return = pretarget_return + best_target_return
+
+                # Update value of last state-action taken with last reward and estimated return 
+                # (value) of next action-state: 
+                old_value = Q[d_score_last, p_score_last, last_action]
+                count = C[d_score_last, p_score_last, last_action]
+                Q[d_score_last, p_score_last, last_action] = old_value + (total_return - old_value) / count
 
 
 
