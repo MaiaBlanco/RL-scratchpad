@@ -4,7 +4,7 @@ import pickle
 
 # Run Monte-Carlo Simulation
 
-RERUN = True
+RERUN = False
 
 if RERUN:
 	mc = easy21.MonteCarlo21(N0=1000.0, every_visit=True)
