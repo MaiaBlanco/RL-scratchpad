@@ -10,7 +10,7 @@ This class implements the SARSA(lambda) reinforcement learning frea
 """
 class TemporalDifference21_lambd:
 
-    def __init__(self, N0=100, lambd=0.9):
+    def __init__(self, N0=100, lambd=0.5):
         # init an interal game instance:
         self._game = Easy21();
 
@@ -91,13 +91,9 @@ class TemporalDifference21_lambd:
                         # Compute the pre-target return (NOTE NO DISCOUNTING):
                         pretarget_return = np.sum(rewards)
                         # Update composite step return:
-                        total_return += (self._lambda**lookahead) * (pretarget_return + targ_val)
-                        # if (pretarget_return + targ_val) > 0:
-                        print(pretarget_return,  targ_val)
-
+                        total_return += (self._lambda**(lookahead-1)) * (pretarget_return + targ_val)
+                        
                     # Use composite returns over 1..n steps, old value, and count to update Q value:
-                    if total_return > 0:
-                        print(total_return)
                     old_value = Q[d_score_last, p_score_last, last_action]
                     count = C[d_score_last, p_score_last, last_action]
                     total_return *= (1 - self._lambda)
