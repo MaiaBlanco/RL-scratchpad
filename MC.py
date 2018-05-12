@@ -71,7 +71,7 @@ class MonteCarlo21:
         seen_states = set()
         for index, state_action in enumerate(state_actions):
             state, action = state_action
-            d_score, p_score = [x-1 for x in state]
+            d_score, p_score = [ x-1 for x in state ]
             old_value = Q[d_score, p_score, action]
 
             # Perform every-visit or first-visit accounting by skipping a previously seen
@@ -84,9 +84,3 @@ class MonteCarlo21:
                 cumulative_return = np.sum( rewards[index:] )
                 Q[d_score, p_score, action] = old_value + (cumulative_return - old_value) / count
                 seen_states.add(state)
-                # if d_score == 0:
-                #     print(cumulative_return)
-                #     print(action)
-                #     print(count)
-                #     print(old_value)
-                #     print("\n")

@@ -90,11 +90,12 @@ class TemporalDifference21_lambd:
                         rewards = [ x[3] for x in state_actions_rewards[index:index+lookahead] ]
                         # Compute the pre-target return (NOTE NO DISCOUNTING):
                         pretarget_return = np.sum(rewards)
-                        # Update composite step return:
-                        if lookahead == slack-1:
-                            total_return += (self._lambda**(lookahead-1)) * (pretarget_return + targ_val)
-                        else:
+                        # Update composite step return.
+                        if lookahead < slack-1:
                             total_return += (1 - self._lambda) * (self._lambda**(lookahead-1)) * (pretarget_return + targ_val)
+                        else:
+                            # If it is the last return, omit the (1-lambda) factor:
+                            total_return += (self._lambda**(lookahead-1)) * (pretarget_return + targ_val)
                         
                     # Use composite returns over 1..n steps, old value, and count to update Q value:
                     old_value = Q[d_score_last, p_score_last, last_action]

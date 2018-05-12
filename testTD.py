@@ -9,7 +9,7 @@ import pickle
 RERUN = True
 
 if RERUN:
-	td = TD.TemporalDifference21(N0=100.0, n_steps=-1)
+	td = TD.TemporalDifference21(N0=100.0, n_steps=2)
 	for i in range(100000):
 		td.run_episode()
 		# if i % 10000 == 0:

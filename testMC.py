@@ -9,8 +9,8 @@ import pickle
 RERUN = True
 
 if RERUN:
-	mc = MC.MonteCarlo21(N0=100.0, every_visit=True)
-	for i in range(100000):
+	mc = MC.MonteCarlo21(N0=100.0, every_visit=False)
+	for i in range(1000000):
 		mc.run_episode()
 		# if i % 1000 == 0:
 		# 	print(mc._action_state_values[0:2,:,:])
