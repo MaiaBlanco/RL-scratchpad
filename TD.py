@@ -22,8 +22,9 @@ class TemporalDifference21:
         # policy (default policy). 
         self._N0 = float(N0)
 
-        self._action_state_counts = np.zeros((10+1, 21+1, 2))
-        self._action_state_values = np.zeros((10+1, 21+1, 2))
+        # Plus one oversizes state space to accomodate for single (-1, -1) terminal state.
+        self._action_state_counts = np.zeros((11, 22, 2))
+        self._action_state_values = np.zeros((11, 22, 2))
 
         if n_steps == 0:
             print("Warning: n_steps must be -1 or greater than 0." \
