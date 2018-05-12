@@ -23,6 +23,7 @@ def plot_optimal_value_function(Q, C, show=False):
     plt.ylabel("Dealer Starting Card (Initial Score)")
     ax.set_zlabel("Value of state given greedy action selection.")
     if show:
+        plt.hold(False)
         plt.show()
     else:
         plt.hold(True)
