@@ -50,15 +50,8 @@ class Easy21:
         '''
 
         if action == "hit" or action == 0:
-            # Generate magnitude value of card
-            next_card_value = random.randint(1, 10)
-
-            # With probability 1/3, the card we drew was red and has negative value
-            if random.randint(1,3) < 2:
-                next_card_value *= -1
-            
             # Add the card value to the player's score
-            self._player_score += next_card_value
+            self._player_score += drawCard()
 
             # Check if the player has gone bust (score over 21 or less than 1)
             if self._player_score > 21 or self._player_score < 1:
@@ -73,14 +66,9 @@ class Easy21:
             # Dealer functions as a part of the environment and will play ("hit")
             # until either goes bust or score goes above 17
             # "hit" condition:
-            while self._dealer_score < 17 and self._dealer_score > 1:
-                # Dealer draws a card
-                next_card_value = random.randint(1,10)
-                    
-                if random.randint(1,3) < 2:
-                    next_card_value *= -1
-                    
-                self._dealer_score += next_card_value
+            while self._dealer_score < 17 and self._dealer_score > 0:
+                # Dealer draws a card              
+                self._dealer_score += drawCard()
                     
             # Check the dealer's status.
             # If the dealer busts, then the game ends.
@@ -125,3 +113,11 @@ class Easy21:
         # Set the game state to non-terminal:
         self._game_over = False
 
+def drawCard():
+    # Generate magnitude value of card
+    next_card_value = random.randint(1, 10)
+
+    # With probability 1/3, the card we drew was red and has negative value
+    if random.randint(1,3) < 2:
+        next_card_value *= -1
+    return next_card_value
