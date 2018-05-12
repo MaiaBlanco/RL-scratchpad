@@ -86,7 +86,7 @@ class TemporalDifference21:
             # (Do this for every state seen)
             for index, val in enumerate(state_actions_rewards):
                 d_score_last, p_score_last, last_action, _ = val
-                lookahead = min(self._lookahead, len(state_actions_rewards) - index)
+                lookahead = min(self._lookahead, len(state_actions_rewards) - index - 1)
                 if lookahead == -1:
                     # Lookahead -1 basically implements full-trace learning, but updated
                     # at each action-state change rather than at end of game.
